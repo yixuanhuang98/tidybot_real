@@ -104,8 +104,8 @@ class CameraServer:
 
 def main():
     hostname = socket.gethostname()
-    assert hostname.startswith(ROBOT_HOSTNAME_PREFIX)
-    robot_num = int(hostname[-1])
+    # assert hostname.startswith(ROBOT_HOSTNAME_PREFIX)
+    robot_num = 1 # int(hostname[-1])
     robot_idx = robot_num - 1
     port = 6010 + robot_idx
     camera = Camera(robot_idx)

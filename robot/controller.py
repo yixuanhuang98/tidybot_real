@@ -20,6 +20,10 @@ from constants import SERVER_HOSTNAME, ROBOT_HOSTNAME_PREFIX, CONN_AUTHKEY, REDI
 from constants import ARM_HEADING_COMPENSATION
 from kinova import KinovaArm
 
+from constants import BASE_RPC_HOST, BASE_RPC_PORT, ARM_RPC_HOST, ARM_RPC_PORT, RPC_AUTHKEY
+from constants import BASE_CAMERA_SERIAL
+from base_server import BaseManager
+
 def distance(pt1, pt2):
     return math.sqrt((pt2[0] - pt1[0])**2 + (pt2[1] - pt1[1])**2)
 
@@ -46,45 +50,45 @@ def intersect(d, f, r, use_t1=False):
                 return t2
     return None
 
-class RedisClient:
-    def __init__(self):
-        hostname = socket.gethostname()
-        assert hostname.startswith(ROBOT_HOSTNAME_PREFIX)
-        self.bot_num = int(hostname[-1])
-        self.client = Redis(f'{ROBOT_HOSTNAME_PREFIX}{self.bot_num}', password=REDIS_PASSWORD, decode_responses=True)
+# class RedisClient:
+#     def __init__(self):
+#         hostname = socket.gethostname()
+#         assert hostname.startswith(ROBOT_HOSTNAME_PREFIX)
+#         self.bot_num = int(hostname[-1])
+#         self.client = Redis(f'{ROBOT_HOSTNAME_PREFIX}{self.bot_num}', password=REDIS_PASSWORD, decode_responses=True)
 
-    def get_driver_version(self):
-        redis_key = f'mmp::bot{self.bot_num}::veh::driver_version'
-        self.client.delete(redis_key)
-        time.sleep(3 * 0.008)  # 3 cycles at 125 Hz
-        return self.client.get(redis_key)
+#     def get_driver_version(self):
+#         redis_key = f'mmp::bot{self.bot_num}::veh::driver_version'
+#         self.client.delete(redis_key)
+#         time.sleep(3 * 0.008)  # 3 cycles at 125 Hz
+#         return self.client.get(redis_key)
 
-    def get_pose(self):
-        return tuple(map(float, self.client.get(f'mmp::bot{self.bot_num}::veh::sensor::x').split(' ')))
+#     def get_pose(self):
+#         return tuple(map(float, self.client.get(f'mmp::bot{self.bot_num}::veh::sensor::x').split(' ')))
 
-    def set_target_pose(self, pose):
-        self.client.set(f'mmp::bot{self.bot_num}::veh::control::x', f'{pose[0]} {pose[1]} {pose[2]}')
+#     def set_target_pose(self, pose):
+#         self.client.set(f'mmp::bot{self.bot_num}::veh::control::x', f'{pose[0]} {pose[1]} {pose[2]}')
 
-    def get_goal_reached(self):
-        return bool(int(self.client.get(f'mmp::bot{self.bot_num}::veh::sensor::goal_reached')))
+#     def get_goal_reached(self):
+#         return bool(int(self.client.get(f'mmp::bot{self.bot_num}::veh::sensor::goal_reached')))
 
-    def set_stop(self, value):
-        self.client.set(f'mmp::bot{self.bot_num}::veh::stop', int(value))
+#     def set_stop(self, value):
+#         self.client.set(f'mmp::bot{self.bot_num}::veh::stop', int(value))
 
-    def set_max_velocity(self, max_vel_x, max_vel_y, max_vel_theta):
-        self.client.set(f'mmp::bot{self.bot_num}::veh::control::max_vel', f'{max_vel_x} {max_vel_y} {max_vel_theta}')
+#     def set_max_velocity(self, max_vel_x, max_vel_y, max_vel_theta):
+#         self.client.set(f'mmp::bot{self.bot_num}::veh::control::max_vel', f'{max_vel_x} {max_vel_y} {max_vel_theta}')
 
-    def set_max_acceleration(self, max_accel_x, max_accel_y, max_accel_theta):
-        self.client.set(f'mmp::bot{self.bot_num}::veh::control::max_accel', f'{max_accel_x} {max_accel_y} {max_accel_theta}')
+#     def set_max_acceleration(self, max_accel_x, max_accel_y, max_accel_theta):
+#         self.client.set(f'mmp::bot{self.bot_num}::veh::control::max_accel', f'{max_accel_x} {max_accel_y} {max_accel_theta}')
 
-    def get_velocity(self):
-        return tuple(map(float, self.client.get(f'mmp::bot{self.bot_num}::veh::sensor::dx').split(' ')))
+#     def get_velocity(self):
+#         return tuple(map(float, self.client.get(f'mmp::bot{self.bot_num}::veh::sensor::dx').split(' ')))
 
-    def get_cstop(self):
-        return bool(int(self.client.get('mmp::cstop')))
+#     def get_cstop(self):
+#         return bool(int(self.client.get('mmp::cstop')))
 
-    def get_emergency_shutdown(self):
-        return bool(int(self.client.get('mmp::emergency_shutdown')))
+#     def get_emergency_shutdown(self):
+#         return bool(int(self.client.get('mmp::emergency_shutdown')))
 
 class CoordFrameConverter:
     def __init__(self, pose_in_map, pose_in_odom):
@@ -113,29 +117,40 @@ class CoordFrameConverter:
         x, y, th = pose
         return (*self.convert_position((x, y)), self.convert_heading(th))
 
-class BaseController:
+class TrajectoryController:
     LOOKAHEAD_DISTANCE = 0.3  # 30 cm
 
     def __init__(self, debug=False):
         # Mobile base driver
-        self.driver_running = True
-        ps_output = subprocess.run(['ps', '-C', 'vehicle', 'H', '-o', 'rtprio='], capture_output=True, text=True).stdout  # pylint: disable=subprocess-run-check
-        if '80' not in map(str.strip, ps_output.split('\n')):  # Control thread runs with rtprio 80
-            self.driver_running = False
-            print('Mobile base driver is not running, please restart this controller after the driver is ready')
-        self.redis_client = RedisClient()
-        self.redis_client.set_stop(True)
-        self.redis_client.set_max_velocity(0.5, 0.5, 3.14)
-        self.redis_client.set_max_acceleration(0.5, 0.5, 2.36)
-        self.robot_idx = self.redis_client.bot_num - 1
-        if self.driver_running:
-            expected_driver_version = '2023-08-17'
-            assert self.redis_client.get_driver_version() == expected_driver_version, f'Please make sure you are running the correct version of the mobile base driver ({expected_driver_version})'
+        # self.driver_running = True
+        # ps_output = subprocess.run(['ps', '-C', 'vehicle', 'H', '-o', 'rtprio='], capture_output=True, text=True).stdout  # pylint: disable=subprocess-run-check
+        # if '80' not in map(str.strip, ps_output.split('\n')):  # Control thread runs with rtprio 80
+        #     self.driver_running = False
+        #     print('Mobile base driver is not running, please restart this controller after the driver is ready')
+        # self.redis_client = RedisClient()
+        # self.redis_client.set_stop(True)
+        # self.redis_client.set_max_velocity(0.5, 0.5, 3.14)
+        # self.redis_client.set_max_acceleration(0.5, 0.5, 2.36)
+        # self.robot_idx = self.redis_client.bot_num - 1
+        # if self.driver_running:
+        #     expected_driver_version = '2023-08-17'
+        #     assert self.redis_client.get_driver_version() == expected_driver_version, f'Please make sure you are running the correct version of the mobile base driver ({expected_driver_version})'
+        
+        # RPC server connection for base
+        base_manager = BaseManager(address=(BASE_RPC_HOST, BASE_RPC_PORT), authkey=RPC_AUTHKEY)
+        try:
+            base_manager.connect()
+        except ConnectionRefusedError as e:
+            raise Exception('Could not connect to base RPC server, is base_server.py running?') from e
 
+        self.redis_client = base_manager.Base(max_vel=(0.5, 0.5, 1.57), max_accel=(0.5, 0.5, 1.57))
+        
         # Control loop
         self.running = False
         self.state = 'idle'  # States: idle, moving
         self.pose_map = (0, 0, 0)
+        print('entteer')
+        print('state', self.redis_client.get_state())
         self.pose_odom = self.redis_client.get_pose()
         self.map_to_odom_converter = CoordFrameConverter(self.pose_map, self.pose_odom)
         self.odom_to_map_converter = CoordFrameConverter(self.pose_odom, self.pose_map)
@@ -283,7 +298,7 @@ class BaseController:
                             end = self.waypoints_odom[self.waypoint_index]
                             d = (end[0] - start[0], end[1] - start[1])
                             f = (start[0] - self.pose_odom[0], start[1] - self.pose_odom[1])
-                            t2 = intersect(d, f, BaseController.LOOKAHEAD_DISTANCE)
+                            t2 = intersect(d, f, TrajectoryController.LOOKAHEAD_DISTANCE)
                             if t2 is not None:
                                 self.lookahead_position_odom = (start[0] + t2 * d[0], start[1] + t2 * d[1])
                                 break
@@ -306,13 +321,13 @@ class BaseController:
                             frac = 1
                             if self.lookahead_position_odom is not None:
                                 # Turn slowly at first, and then more quickly as robot approaches target
-                                remaining_path_length = BaseController.LOOKAHEAD_DISTANCE
+                                remaining_path_length = TrajectoryController.LOOKAHEAD_DISTANCE
                                 curr_waypoint = self.lookahead_position_odom
                                 for idx in range(self.waypoint_index, len(self.waypoints_odom)):
                                     next_waypoint = self.waypoints_odom[idx]
                                     remaining_path_length += distance(curr_waypoint, next_waypoint)
                                     curr_waypoint = next_waypoint
-                                frac = math.sqrt(BaseController.LOOKAHEAD_DISTANCE / remaining_path_length)
+                                frac = math.sqrt(TrajectoryController.LOOKAHEAD_DISTANCE / remaining_path_length)
                             target_heading += frac * restrict_heading_range(math.atan2(dy, dx) + math.pi - self.pose_odom[2])
 
                         self.redis_client.set_target_pose((target_position[0], target_position[1], target_heading))
@@ -641,7 +656,7 @@ class Controller:
 
         # Base controller
         try:
-            self.base_controller = BaseController(debug=debug)
+            self.base_controller = TrajectoryController(debug=debug)
             robot_idx = self.base_controller.robot_idx
         except Exception as e:
             print(e)
