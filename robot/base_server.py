@@ -47,6 +47,7 @@ class Base:
         return self.vehicle.x
 
     # def get_goal_reached(self, action):
+    #     print('goal check', self.vehicle.otg_res == Result.Finished)
     #     return self.vehicle.otg_res == Result.Finished
     
     def get_goal_reached(self, action, tol=0.01):

@@ -253,10 +253,10 @@ class TrajectoryController:
                                 self.excessive_position_drift_count += 1
                             else:
                                 self.excessive_position_drift_count = 0
-                            if self.excessive_position_drift_count > 4:  # 40 ms
-                                print(f'Exiting due to excessive position drift ({100 * position_drift:.2f} cm)')
-                                # self.redis_client.set_stop(True)
-                                break
+                            # if self.excessive_position_drift_count > 4:  # 40 ms
+                            #     print(f'Exiting due to excessive position drift ({100 * position_drift:.2f} cm)')
+                            #     # self.redis_client.set_stop(True)
+                            #     break
 
                             # Heading drift
                             heading_drift = abs(restrict_heading_range(self.pose_map[2] - pose_odom[2]))
@@ -270,8 +270,10 @@ class TrajectoryController:
                                 break
 
                 # Base control logic
+                print('state', self.state)
                 if self.state == 'idle':
-                    self.redis_client.execute_action({'base_pose': np.array(self.pose_odom)})
+                    pass
+                    #self.redis_client.execute_action({'base_pose': np.array(self.pose_odom)})
                     # self.redis_client.set_target_pose(self.pose_odom)
                 elif self.state == 'moving':
                     if self.redis_client.get_goal_reached(np.array(self.pose_odom)):
@@ -462,8 +464,8 @@ class ArmController:
 
     def pick_object(self, target_arm_heading, distance_to_target, grasp_orientation):
         self.arm.wait_ready()
-        computed_joint_angles_1 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288 + 0.1), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
-        computed_joint_angles_2 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
+        computed_joint_angles_1 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288 + 0.2), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
+        computed_joint_angles_2 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288 + 0.1), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
         if computed_joint_angles_1 is not None and computed_joint_angles_2 is not None:
             computed_joint_angles_1[0] = target_arm_heading
             computed_joint_angles_2[0] = target_arm_heading
