@@ -9,6 +9,7 @@ import socket
 import subprocess
 import threading
 import time
+import numpy as np
 from datetime import datetime
 from multiprocessing.connection import Client
 from pathlib import Path
@@ -131,7 +132,7 @@ class TrajectoryController:
         # self.redis_client.set_stop(True)
         # self.redis_client.set_max_velocity(0.5, 0.5, 3.14)
         # self.redis_client.set_max_acceleration(0.5, 0.5, 2.36)
-        # self.robot_idx = self.redis_client.bot_num - 1
+        self.robot_idx = 0
         # if self.driver_running:
         #     expected_driver_version = '2023-08-17'
         #     assert self.redis_client.get_driver_version() == expected_driver_version, f'Please make sure you are running the correct version of the mobile base driver ({expected_driver_version})'
@@ -149,8 +150,7 @@ class TrajectoryController:
         self.running = False
         self.state = 'idle'  # States: idle, moving
         self.pose_map = (0, 0, 0)
-        print('entteer')
-        print('state', self.redis_client.get_state())
+        self.redis_client.reset()
         self.pose_odom = self.redis_client.get_pose()
         self.map_to_odom_converter = CoordFrameConverter(self.pose_map, self.pose_odom)
         self.odom_to_map_converter = CoordFrameConverter(self.pose_odom, self.pose_map)
@@ -182,12 +182,12 @@ class TrajectoryController:
         self.lookahead_position_odom = None
         self.position_tolerance = base_command.get('position_tolerance', 0.015)  # Default 1.5 cm
         self.heading_tolerance = base_command.get('heading_tolerance', math.radians(2.1))  # Default 2.1 deg
-        if self.driver_running:
-            self.redis_client.set_stop(False)
-            self.state = 'moving'
+        # if self.driver_running:
+        #     self.redis_client.set_stop(False)
+        self.state = 'moving'
 
     def stop(self):
-        self.redis_client.set_stop(True)
+        # self.redis_client.set_stop(True)
         self.state = 'idle'
 
     def get_controller_data(self):
@@ -225,12 +225,12 @@ class TrajectoryController:
                 last_time = time.time()
 
                 # Check for cstop or emergency shutdown
-                if self.redis_client.get_cstop():
-                    print('Exiting since cstop key was set')
-                    break
-                if self.redis_client.get_emergency_shutdown():
-                    print('Exiting since emergency shutdown key was set')
-                    break
+                # if self.redis_client.get_cstop():
+                #     print('Exiting since cstop key was set')
+                #     break
+                # if self.redis_client.get_emergency_shutdown():
+                #     print('Exiting since emergency shutdown key was set')
+                #     break
 
                 # Update pose from odometry and marker detection
                 self.pose_odom = self.redis_client.get_pose()
@@ -252,7 +252,7 @@ class TrajectoryController:
                                 self.excessive_position_drift_count = 0
                             if self.excessive_position_drift_count > 4:  # 40 ms
                                 print(f'Exiting due to excessive position drift ({100 * position_drift:.2f} cm)')
-                                self.redis_client.set_stop(True)
+                                # self.redis_client.set_stop(True)
                                 break
 
                             # Heading drift
@@ -263,14 +263,15 @@ class TrajectoryController:
                                 self.excessive_heading_drift_count = 0
                             if self.excessive_heading_drift_count > 4:  # 40 ms
                                 print(f'Exiting due to excessive heading drift ({math.degrees(heading_drift):.2f} deg)')
-                                self.redis_client.set_stop(True)
+                                # self.redis_client.set_stop(True)
                                 break
 
                 # Base control logic
                 if self.state == 'idle':
-                    self.redis_client.set_target_pose(self.pose_odom)
+                    self.redis_client.execute_action({'base_pose': np.array(self.pose_odom)})
+                    # self.redis_client.set_target_pose(self.pose_odom)
                 elif self.state == 'moving':
-                    if self.redis_client.get_goal_reached():
+                    if self.redis_client.get_goal_reached(np.array(self.pose_odom)):
                         goal_reached_steps += 1
                     if goal_reached_steps > 1:  # 16 ms
                         goal_reached_steps = 0
@@ -289,7 +290,7 @@ class TrajectoryController:
                             self.waypoints_odom = list(map(self.map_to_odom_converter.convert_position, self.waypoints_map))
                             self.target_ee_pos_odom = None if self.target_ee_pos_map is None else self.map_to_odom_converter.convert_position(self.target_ee_pos_map)
                         else:
-                            self.redis_client.set_stop(True)
+                            # self.redis_client.set_stop(True)
                             self.state = 'idle'
                     else:
                         # Compute lookahead position
@@ -330,12 +331,13 @@ class TrajectoryController:
                                 frac = math.sqrt(TrajectoryController.LOOKAHEAD_DISTANCE / remaining_path_length)
                             target_heading += frac * restrict_heading_range(math.atan2(dy, dx) + math.pi - self.pose_odom[2])
 
-                        self.redis_client.set_target_pose((target_position[0], target_position[1], target_heading))
+                        self.redis_client.execute_action({'base_pose': np.array([target_position[0], target_position[1], target_heading])})
+                        # self.redis_client.set_target_pose((target_position[0], target_position[1], target_heading))
 
         finally:
             self.running = False
             print('Stopping mobile base movement before exiting')
-            self.redis_client.set_stop(True)
+            # self.redis_client.set_stop(True)
 
 class DummyBaseController:
     def __init__(self):

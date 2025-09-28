@@ -9,6 +9,7 @@
 # causing latency spikes.
 
 import time
+import numpy as np
 from multiprocessing.managers import BaseManager as MPBaseManager
 from base_controller import Vehicle
 from constants import BASE_RPC_HOST, BASE_RPC_PORT, RPC_AUTHKEY
@@ -39,12 +40,29 @@ class Base:
 
     def get_state(self):
         state = {'base_pose': self.vehicle.x}
-        print('state', state)
         return state
 
     def get_pose(self):
-        print('pose', self.vehicle.x)
         return self.vehicle.x
+
+    def get_goal_reached(self, action, tol=0.01):
+        return False
+        # print('action:', action)
+        # print('pose:', self.vehicle.x)
+        
+        # # Compute Euclidean distance between action and current pose
+        # dist = np.linalg.norm(action - self.vehicle.x)
+        # print('distance:', dist)
+
+        # return dist < tol
+
+    # def get_goal_reached(self, action):
+    #     print('action', action)
+    #     print('pose', self.vehicle.x)
+    #     if np.close(action, self.vehicle.x) < 0.01:
+    #         return True
+    #     else:
+    #         return False
 
     def close(self):
         if self.vehicle is not None:
@@ -61,6 +79,7 @@ if __name__ == '__main__':
     server = manager.get_server()
     print(f'Base manager server started at {BASE_RPC_HOST}:{BASE_RPC_PORT}')
     server.serve_forever()
+    # print('enter')
     # import numpy as np
     # from constants import POLICY_CONTROL_PERIOD
     # manager = BaseManager(address=(BASE_RPC_HOST, BASE_RPC_PORT), authkey=RPC_AUTHKEY)
