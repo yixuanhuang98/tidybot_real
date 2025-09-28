@@ -13,6 +13,7 @@ import numpy as np
 from multiprocessing.managers import BaseManager as MPBaseManager
 from base_controller import Vehicle
 from constants import BASE_RPC_HOST, BASE_RPC_PORT, RPC_AUTHKEY
+from ruckig import InputParameter, OutputParameter, Result, Ruckig, ControlInterface
 
 class Base:
     def __init__(self, max_vel=(0.5, 0.5, 1.57), max_accel=(0.25, 0.25, 0.79)):
@@ -45,16 +46,33 @@ class Base:
     def get_pose(self):
         return self.vehicle.x
 
+    # def get_goal_reached(self, action):
+    #     return self.vehicle.otg_res == Result.Finished
+    
     def get_goal_reached(self, action, tol=0.01):
-        return False
-        # print('action:', action)
-        # print('pose:', self.vehicle.x)
+        # Check if robot is within tolerance of the target
+        target_pose = action
+        current_pose = self.vehicle.x
         
-        # # Compute Euclidean distance between action and current pose
-        # dist = np.linalg.norm(action - self.vehicle.x)
-        # print('distance:', dist)
+        # Compute position distance
+        position_dist = np.linalg.norm(target_pose[:2] - current_pose[:2])
+        
+        # Compute heading difference  
+        heading_diff = abs(target_pose[2] - current_pose[2])
+        heading_diff = min(heading_diff, 2*np.pi - heading_diff)  # Handle wrap-around
+        
+        # Goal reached if within position tolerance (2cm) and heading tolerance (5 degrees)
+        return position_dist < tol and heading_diff < np.radians(5)
+    
+    # def get_goal_reached(self, action, tol=0.005):
+    #     # print('action:', action)
+    #     # print('pose:', self.vehicle.x)
+        
+    #     # Compute Euclidean distance between action and current pose
+    #     dist = np.linalg.norm(action - self.vehicle.x)
+    #     # print('distance:', dist)
 
-        # return dist < tol
+    #     return dist < tol
 
     # def get_goal_reached(self, action):
     #     print('action', action)

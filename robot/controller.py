@@ -98,9 +98,10 @@ class CoordFrameConverter:
         self.update(pose_in_map, pose_in_odom)
 
     def update(self, pose_in_map, pose_in_odom):
-        self.basis = pose_in_map[2] - pose_in_odom[2]
-        dx = pose_in_odom[0] * math.cos(self.basis) - pose_in_odom[1] * math.sin(self.basis)
-        dy = pose_in_odom[0] * math.sin(self.basis) + pose_in_odom[1] * math.cos(self.basis)
+        # Invert coordinate system for this mobile base
+        self.basis = pose_in_map[2] - (-pose_in_odom[2])  # Invert heading
+        dx = (-pose_in_odom[0]) * math.cos(self.basis) - (-pose_in_odom[1]) * math.sin(self.basis)  # Invert x,y
+        dy = (-pose_in_odom[0]) * math.sin(self.basis) + (-pose_in_odom[1]) * math.cos(self.basis)
         self.origin = (pose_in_map[0] - dx, pose_in_map[1] - dy)
 
     def convert_position(self, position):
@@ -109,10 +110,12 @@ class CoordFrameConverter:
         y = y - self.origin[1]
         xp = x * math.cos(-self.basis) - y * math.sin(-self.basis)  # pylint: disable=invalid-unary-operand-type
         yp = x * math.sin(-self.basis) + y * math.cos(-self.basis)  # pylint: disable=invalid-unary-operand-type
-        return (xp, yp)
+        # Invert output coordinates for this mobile base
+        return (-xp, -yp)
 
     def convert_heading(self, th):
-        return th - self.basis
+        # Invert heading for this mobile base  
+        return -(th - self.basis)
 
     def convert_pose(self, pose):
         x, y, th = pose
@@ -285,6 +288,8 @@ class TrajectoryController:
                         if position_error > self.position_tolerance or heading_error > self.heading_tolerance:
                             # Execute corrective movement if robot is too far from intended destination
                             print(f'Too far from target pose ({100 * position_error:.2f} cm, {math.degrees(heading_error):.2f} deg)')
+                            print(f'  Tolerances: position={100 * self.position_tolerance:.2f} cm, heading={math.degrees(self.heading_tolerance):.2f} deg')
+                            print(f'  Current pose: {self.pose_map}, Target: {self.waypoints_map[-1]}')
                             self.map_to_odom_converter.update(self.pose_map, self.pose_odom)
                             self.odom_to_map_converter.update(self.pose_odom, self.pose_map)
                             self.waypoints_odom = list(map(self.map_to_odom_converter.convert_position, self.waypoints_map))
