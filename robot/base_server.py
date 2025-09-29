@@ -37,14 +37,16 @@ class Base:
             time.sleep(0.01)
 
     def execute_action(self, action):
-        self.vehicle.set_target_position(action['base_pose'])
+        # self.vehicle.set_target_position(action['base_pose'])
+        self.vehicle.set_target_position(np.array([-action['base_pose'][0], -action['base_pose'][1], action['base_pose'][2]]))
 
     def get_state(self):
         state = {'base_pose': self.vehicle.x}
         return state
 
     def get_pose(self):
-        return self.vehicle.x
+        # return self.vehicle.x
+        return -self.vehicle.x[0], -self.vehicle.x[1], self.vehicle.x[2]
 
     # def get_goal_reached(self, action):
     #     print('goal check', self.vehicle.otg_res == Result.Finished)
@@ -53,7 +55,7 @@ class Base:
     def get_goal_reached(self, action, tol=0.01):
         # Check if robot is within tolerance of the target
         target_pose = action
-        current_pose = self.vehicle.x
+        current_pose = self.get_pose()
         
         # Compute position distance
         position_dist = np.linalg.norm(target_pose[:2] - current_pose[:2])

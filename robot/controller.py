@@ -91,6 +91,38 @@ def intersect(d, f, r, use_t1=False):
 #     def get_emergency_shutdown(self):
 #         return bool(int(self.client.get('mmp::emergency_shutdown')))
 
+# reverse
+# class CoordFrameConverter:
+#     def __init__(self, pose_in_map, pose_in_odom):
+#         self.origin = None
+#         self.basis = None
+#         self.update(pose_in_map, pose_in_odom)
+
+#     def update(self, pose_in_map, pose_in_odom):
+#         # Invert coordinate system for this mobile base
+#         self.basis = pose_in_map[2] - (-pose_in_odom[2])  # Invert heading
+#         dx = (-pose_in_odom[0]) * math.cos(self.basis) - (-pose_in_odom[1]) * math.sin(self.basis)  # Invert x,y
+#         dy = (-pose_in_odom[0]) * math.sin(self.basis) + (-pose_in_odom[1]) * math.cos(self.basis)
+#         self.origin = (pose_in_map[0] - dx, pose_in_map[1] - dy)
+
+#     def convert_position(self, position):
+#         x, y = position
+#         x = x - self.origin[0]
+#         y = y - self.origin[1]
+#         xp = x * math.cos(-self.basis) - y * math.sin(-self.basis)  # pylint: disable=invalid-unary-operand-type
+#         yp = x * math.sin(-self.basis) + y * math.cos(-self.basis)  # pylint: disable=invalid-unary-operand-type
+#         # Invert output coordinates for this mobile base
+#         return (-xp, -yp)
+
+#     def convert_heading(self, th):
+#         # Invert heading for this mobile base  
+#         return -(th - self.basis)
+
+#     def convert_pose(self, pose):
+#         x, y, th = pose
+#         return (*self.convert_position((x, y)), self.convert_heading(th))
+
+# original
 class CoordFrameConverter:
     def __init__(self, pose_in_map, pose_in_odom):
         self.origin = None
@@ -98,10 +130,9 @@ class CoordFrameConverter:
         self.update(pose_in_map, pose_in_odom)
 
     def update(self, pose_in_map, pose_in_odom):
-        # Invert coordinate system for this mobile base
-        self.basis = pose_in_map[2] - (-pose_in_odom[2])  # Invert heading
-        dx = (-pose_in_odom[0]) * math.cos(self.basis) - (-pose_in_odom[1]) * math.sin(self.basis)  # Invert x,y
-        dy = (-pose_in_odom[0]) * math.sin(self.basis) + (-pose_in_odom[1]) * math.cos(self.basis)
+        self.basis = pose_in_map[2] - pose_in_odom[2]
+        dx = pose_in_odom[0] * math.cos(self.basis) - pose_in_odom[1] * math.sin(self.basis)
+        dy = pose_in_odom[0] * math.sin(self.basis) + pose_in_odom[1] * math.cos(self.basis)
         self.origin = (pose_in_map[0] - dx, pose_in_map[1] - dy)
 
     def convert_position(self, position):
@@ -111,11 +142,11 @@ class CoordFrameConverter:
         xp = x * math.cos(-self.basis) - y * math.sin(-self.basis)  # pylint: disable=invalid-unary-operand-type
         yp = x * math.sin(-self.basis) + y * math.cos(-self.basis)  # pylint: disable=invalid-unary-operand-type
         # Invert output coordinates for this mobile base
-        return (-xp, -yp)
+        return (xp, yp)
 
     def convert_heading(self, th):
         # Invert heading for this mobile base  
-        return -(th - self.basis)
+        return th - self.basis
 
     def convert_pose(self, pose):
         x, y, th = pose
@@ -264,13 +295,12 @@ class TrajectoryController:
                                 self.excessive_heading_drift_count += 1
                             else:
                                 self.excessive_heading_drift_count = 0
-                            if self.excessive_heading_drift_count > 4:  # 40 ms
-                                print(f'Exiting due to excessive heading drift ({math.degrees(heading_drift):.2f} deg)')
-                                # self.redis_client.set_stop(True)
-                                break
+                            # if self.excessive_heading_drift_count > 4:  # 40 ms
+                            #     print(f'Exiting due to excessive heading drift ({math.degrees(heading_drift):.2f} deg)')
+                            #     # self.redis_client.set_stop(True)
+                            #     break
 
                 # Base control logic
-                print('state', self.state)
                 if self.state == 'idle':
                     pass
                     #self.redis_client.execute_action({'base_pose': np.array(self.pose_odom)})
@@ -338,6 +368,8 @@ class TrajectoryController:
                                 frac = math.sqrt(TrajectoryController.LOOKAHEAD_DISTANCE / remaining_path_length)
                             target_heading += frac * restrict_heading_range(math.atan2(dy, dx) + math.pi - self.pose_odom[2])
 
+                        # self.redis_client.execute_action({'base_pose': np.array([-target_position[0], -target_position[1], restrict_heading_range(target_heading)])})
+                        print(f'target_position: {target_position}, target_heading: {target_heading}')
                         self.redis_client.execute_action({'base_pose': np.array([target_position[0], target_position[1], target_heading])})
                         # self.redis_client.set_target_pose((target_position[0], target_position[1], target_heading))
 
@@ -464,8 +496,8 @@ class ArmController:
 
     def pick_object(self, target_arm_heading, distance_to_target, grasp_orientation):
         self.arm.wait_ready()
-        computed_joint_angles_1 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288 + 0.2), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
-        computed_joint_angles_2 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288 + 0.1), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
+        computed_joint_angles_1 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288 + 0.1), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
+        computed_joint_angles_2 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
         if computed_joint_angles_1 is not None and computed_joint_angles_2 is not None:
             computed_joint_angles_1[0] = target_arm_heading
             computed_joint_angles_2[0] = target_arm_heading
@@ -596,6 +628,8 @@ class ArmController:
 
                     # Execute command
                     self.target_ee_pos = arm_command['target_ee_pos']
+                    arm_command['distance_to_target'] -= 0.12 # for new tidybot
+                    
                     if arm_command['primitive_name'] == 'pick':
                         self.pick_object(arm_command['target_arm_heading'], arm_command['distance_to_target'], arm_command['grasp_orientation'])
                     elif arm_command['primitive_name'] == 'place':
@@ -723,7 +757,7 @@ class Controller:
 
         # Modify waypoints so that the end effector is placed at the target end effector position (the last waypoint)
         target_ee_pos = command['waypoints'][-1]
-        end_effector_offset = self._get_end_effector_offset(command['primitive_name'])
+        end_effector_offset = self._get_end_effector_offset(command['primitive_name']) + 0.12 # for new tidybot
         new_waypoint = None  # Find new_waypoint such that distance(new_waypoint, target_ee_pos) == end_effector_offset
         reversed_waypoints = command['waypoints'][::-1]
         for idx in range(1, len(reversed_waypoints)):
@@ -757,7 +791,7 @@ class Controller:
             return None
         target_ee_pos = command['waypoints'][-1]
         distance_to_target = distance(base_pose, target_ee_pos)
-        end_effector_offset = self._get_end_effector_offset(command['primitive_name'])
+        end_effector_offset = self._get_end_effector_offset(command['primitive_name']) + 0.12 # for new tidybot
         diff = abs(end_effector_offset - distance_to_target)
         if diff < 0.1:  # 10 cm
             dx = target_ee_pos[0] - base_pose[0]
@@ -844,6 +878,7 @@ class Controller:
                     logging.info(f'Executing command: {curr_command}')  # pylint: disable=logging-fstring-interpolation
                     self.categories = curr_command.get('categories', [])
                     self.state = 'moving'
+                    print('base command:', self.build_base_command(curr_command))
                     self.base_controller.execute_command(self.build_base_command(curr_command))
             elif self.state == 'moving':
                 if self.base_controller.state == 'idle':
