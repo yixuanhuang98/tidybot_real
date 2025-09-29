@@ -48,10 +48,6 @@ class Base:
         # return self.vehicle.x
         return -self.vehicle.x[0], -self.vehicle.x[1], self.vehicle.x[2]
 
-    # def get_goal_reached(self, action):
-    #     print('goal check', self.vehicle.otg_res == Result.Finished)
-    #     return self.vehicle.otg_res == Result.Finished
-    
     def get_goal_reached(self, action, tol=0.01):
         # Check if robot is within tolerance of the target
         target_pose = action
@@ -66,24 +62,6 @@ class Base:
         
         # Goal reached if within position tolerance (2cm) and heading tolerance (5 degrees)
         return position_dist < tol and heading_diff < np.radians(5)
-    
-    # def get_goal_reached(self, action, tol=0.005):
-    #     # print('action:', action)
-    #     # print('pose:', self.vehicle.x)
-        
-    #     # Compute Euclidean distance between action and current pose
-    #     dist = np.linalg.norm(action - self.vehicle.x)
-    #     # print('distance:', dist)
-
-    #     return dist < tol
-
-    # def get_goal_reached(self, action):
-    #     print('action', action)
-    #     print('pose', self.vehicle.x)
-    #     if np.close(action, self.vehicle.x) < 0.01:
-    #         return True
-    #     else:
-    #         return False
 
     def close(self):
         if self.vehicle is not None:
