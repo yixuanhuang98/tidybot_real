@@ -60,8 +60,8 @@ class Base:
         heading_diff = abs(target_pose[2] - current_pose[2])
         heading_diff = min(heading_diff, 2*np.pi - heading_diff)  # Handle wrap-around
         
-        # Goal reached if within position tolerance (2cm) and heading tolerance (5 degrees)
-        return position_dist < tol and heading_diff < np.radians(5)
+        # Goal reached if within position tolerance (1cm) and heading tolerance (2 degrees)
+        return position_dist < tol and heading_diff < np.radians(2)
 
     def close(self):
         if self.vehicle is not None:
