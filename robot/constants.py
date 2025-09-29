@@ -43,6 +43,9 @@ REDIS_PASSWORD = 'secret password'
 ################################################################################
 # Arm
 
+MOUNTING_OFFSET = 0.12 # for new kinova mounting offset
+HEIGHT_OFFSET = -0.288 - 0.06 # maximum: -0.288 - 0.077, for new kinova height offset
+
 # Arm-dependent heading compensation (set to 0 if unsure)
 ARM_HEADING_COMPENSATION = {
     0: -0.7,  # Robot 1 (asset tag: none)

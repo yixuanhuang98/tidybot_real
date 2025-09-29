@@ -22,7 +22,7 @@ from constants import ARM_HEADING_COMPENSATION
 from kinova import KinovaArm
 
 from constants import BASE_RPC_HOST, BASE_RPC_PORT, ARM_RPC_HOST, ARM_RPC_PORT, RPC_AUTHKEY
-from constants import BASE_CAMERA_SERIAL
+from constants import BASE_CAMERA_SERIAL, MOUNTING_OFFSET, HEIGHT_OFFSET
 from base_server import BaseManager
 
 def distance(pt1, pt2):
@@ -412,8 +412,8 @@ class ArmController:
 
     def pick_object(self, target_arm_heading, distance_to_target, grasp_orientation):
         self.arm.wait_ready()
-        computed_joint_angles_1 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288 + 0.1), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
-        computed_joint_angles_2 = self.arm.compute_inverse_kinematics((distance_to_target, 0, -0.288), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
+        computed_joint_angles_1 = self.arm.compute_inverse_kinematics((distance_to_target, 0, HEIGHT_OFFSET + 0.1), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
+        computed_joint_angles_2 = self.arm.compute_inverse_kinematics((distance_to_target, 0, HEIGHT_OFFSET), (180, 0, 90), guess_joint_angles=[0, 90, 180, 295, 0, 335, 90])
         if computed_joint_angles_1 is not None and computed_joint_angles_2 is not None:
             computed_joint_angles_1[0] = target_arm_heading
             computed_joint_angles_2[0] = target_arm_heading
@@ -441,7 +441,7 @@ class ArmController:
             return False
         return True
 
-    def place_object(self, target_arm_heading, distance_to_target, height=-0.288, horizontal=False):  # height: -0.288 floor, 0.45 max
+    def place_object(self, target_arm_heading, distance_to_target, height=HEIGHT_OFFSET, horizontal=False):  # height: HEIGHT_OFFSET floor, HEIGHT_OFFSET + 0.45 + 0.288 max
         if not self._check_gripper():
             return
         self.arm.wait_ready()
@@ -483,7 +483,7 @@ class ArmController:
         if not self._check_gripper():
             return
         self.arm.wait_ready()
-        computed_joint_angles_1 = self.arm.compute_inverse_kinematics((0.4, 0, -0.288), (180, 0, 90), guess_joint_angles=[0, 85, 180, 280, 0, 345, 90])
+        computed_joint_angles_1 = self.arm.compute_inverse_kinematics((0.4, 0, HEIGHT_OFFSET), (180, 0, 90), guess_joint_angles=[0, 85, 180, 280, 0, 345, 90])
         computed_joint_angles_2 = self.arm.compute_inverse_kinematics((distance_to_target - 0.045, 0, 0.185), (90, 0, 90), guess_joint_angles=[0, 65, 180, 265, 0, 65, 90])
         computed_joint_angles_3 = self.arm.compute_inverse_kinematics((0.4, 0, -0.1), (150, 0, 90), guess_joint_angles=[0, 70, 180, 225, 0, 55, 90])
         computed_joint_angles_4 = self.arm.compute_inverse_kinematics((0.4, 0, 0.3), (180, 0, 90), guess_joint_angles=[0, 355, 180, 240, 0, 290, 90])
@@ -544,7 +544,7 @@ class ArmController:
 
                     # Execute command
                     self.target_ee_pos = arm_command['target_ee_pos']
-                    arm_command['distance_to_target'] -= 0.12 # for new tidybot
+                    arm_command['distance_to_target'] -= MOUNTING_OFFSET # for new tidybot
                     
                     if arm_command['primitive_name'] == 'pick':
                         self.pick_object(arm_command['target_arm_heading'], arm_command['distance_to_target'], arm_command['grasp_orientation'])
@@ -673,7 +673,7 @@ class Controller:
 
         # Modify waypoints so that the end effector is placed at the target end effector position (the last waypoint)
         target_ee_pos = command['waypoints'][-1]
-        end_effector_offset = self._get_end_effector_offset(command['primitive_name']) + 0.12 # for new tidybot
+        end_effector_offset = self._get_end_effector_offset(command['primitive_name']) + MOUNTING_OFFSET # for new tidybot
         new_waypoint = None  # Find new_waypoint such that distance(new_waypoint, target_ee_pos) == end_effector_offset
         reversed_waypoints = command['waypoints'][::-1]
         for idx in range(1, len(reversed_waypoints)):
@@ -707,7 +707,7 @@ class Controller:
             return None
         target_ee_pos = command['waypoints'][-1]
         distance_to_target = distance(base_pose, target_ee_pos)
-        end_effector_offset = self._get_end_effector_offset(command['primitive_name']) + 0.12 # for new tidybot
+        end_effector_offset = self._get_end_effector_offset(command['primitive_name']) + MOUNTING_OFFSET # for new tidybot
         diff = abs(end_effector_offset - distance_to_target)
         if diff < 0.1:  # 10 cm
             dx = target_ee_pos[0] - base_pose[0]
