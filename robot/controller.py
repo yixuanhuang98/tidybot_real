@@ -130,8 +130,8 @@ class TrajectoryController:
         self.target_ee_pos_map = base_command['target_ee_pos']
         self.target_ee_pos_odom = None if self.target_ee_pos_map is None else self.map_to_odom_converter.convert_position(self.target_ee_pos_map)
         self.lookahead_position_odom = None
-        self.position_tolerance = base_command.get('position_tolerance', 0.015)  # Default 1.5 cm
-        self.heading_tolerance = base_command.get('heading_tolerance', math.radians(2.1))  # Default 2.1 deg
+        self.position_tolerance = base_command.get('position_tolerance', 0.01)  # Default 1.5 cm
+        self.heading_tolerance = base_command.get('heading_tolerance', math.radians(1))  # Default 2.1 deg
         # if self.driver_running:
         #     self.redis_client.set_stop(False)
         self.state = 'moving'

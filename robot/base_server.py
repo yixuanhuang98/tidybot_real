@@ -48,6 +48,9 @@ class Base:
         # return self.vehicle.x
         return -self.vehicle.x[0], -self.vehicle.x[1], self.vehicle.x[2]
 
+    # def get_velocity(self):
+    #     return self.vehicle.v
+    
     def get_goal_reached(self, action, tol=0.01):
         # Check if robot is within tolerance of the target
         target_pose = action
